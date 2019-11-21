@@ -1,0 +1,190 @@
+<html>
+  <head>
+    <script
+      src="https://unpkg.com/react@16/umd/react.development.js"
+      crossorigin
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"
+      crossorigin
+    ></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.0/axios.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/redux/4.0.4/redux.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.0/axios.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-router-dom/5.0.1/react-router-dom.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.js"></script>
+    <style>
+      body {
+        font-family: verdana;
+      }
+
+      nav {
+        display: flex;
+        justify-content: space-around;
+      }
+
+      a {
+        padding: 0.5rem;
+      }
+
+      .active {
+        background-color: tomato;
+        color: white;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { createStore, combineReducers } = Redux;
+      const { HashRouter, Link, Switch, Route } = ReactRouterDOM;
+
+      const initialState = { events: [], something: [] };
+
+      const reducer = (state = initialState, action) => {
+        let events;
+        switch (action.type) {
+          case 'addEvent':
+            events = [...state.events, { ...action.data }];
+            return { ...state, events };
+          case 'deleteEvent':
+            events = state.events.filter(event => event.id !== action.data);
+            return { ...state, events };
+          default:
+            return state;
+        }
+      };
+
+      const store = createStore(reducer);
+
+      const connect = Component => {
+        class Connected extends React.Component {
+          constructor() {
+            super();
+            this.state = store.getState();
+          }
+          componentWillUnmount() {
+            this.unsubscribe();
+          }
+          componentDidMount() {
+            this.unsubscribe = store.subscribe(() =>
+              this.setState(store.getState())
+            );
+          }
+          render() {
+            return <Component {...this.state} {...this.props} />;
+          }
+        }
+        return Connected;
+      };
+
+      class Home extends React.Component {
+        render() {
+          const state = store.getState();
+          return (
+            <p>
+              {state.events
+                ? `You've got ${state.events.length} events`
+                : `Loading events...`}
+            </p>
+          );
+        }
+      }
+      const ConnectedHome = connect(new Home().render);
+
+      class Events extends React.Component {
+        render() {
+          const state = store.getState();
+          return (
+            <div>
+              <button
+                onClick={() => {
+                  axios.post('/api/events').then(res => {
+                    console.log('RESPONSE IS ', res.data);
+                    store.dispatch({
+                      type: 'addEvent',
+                      data: res.data
+                    });
+                    console.log('NEW STATE IS ', store.getState());
+                  });
+                }}
+              >
+                Create
+              </button>
+              <ul>
+                {state.events.map(event => (
+                  <li
+                    id={event.id}
+                    key={event.id}
+                    onClick={() => {
+                      console.log('EVENT IS ', event);
+                      axios.delete(`/api/events/${event.id}`).then(res => {
+                        console.log('RES FROM DELETE ', res);
+                        store.dispatch({
+                          type: 'deleteEvent',
+                          data: event.id
+                        });
+                        console.log(
+                          'NEW STATE AFTER DELETE ',
+                          store.getState()
+                        );
+                      });
+                    }}
+                  >
+                    {event.name} - {event.date}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
+      }
+      const ConnectedEvents = connect(new Events().render);
+
+      class Nav extends React.Component {
+        render() {
+          const state = store.getState();
+          return (
+            <nav>
+              <Link to="/">Home</Link>
+              <Link to="/events">{`Events (${
+                state.events ? state.events.length : 'Loading...'
+              })`}</Link>
+            </nav>
+          );
+        }
+      }
+      const ConnectedNav = connect(new Nav().render);
+
+      class App extends React.Component {
+        render() {
+          return (
+            <div>
+              <h1>Acme Event Planner With Redux</h1>
+              <HashRouter>
+                <ConnectedNav />
+                <Switch>
+                  <Route
+                    path="/"
+                    render={() => <ConnectedHome />}
+                    exact
+                  ></Route>
+                  <Route
+                    path="/events"
+                    render={() => <ConnectedEvents />}
+                    exact
+                  ></Route>
+                </Switch>
+              </HashRouter>
+            </div>
+          );
+        }
+      }
+      const ConnectedApp = connect(new App().render);
+
+      ReactDOM.render(<ConnectedApp />, document.querySelector('#root'));
+    </script>
+  </body>
+</html>
